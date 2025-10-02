@@ -18,6 +18,93 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+// Language instruction function
+function getLanguageInstruction(langCode) {
+  const instructions = {
+    'en': 'Respond in English.',
+    'hi': 'Respond ONLY in Hindi (हिंदी) language. Use Devanagari script. Write ALL text, disease names, treatments, and explanations in Hindi. Example: "आपके पौधे में लीफ माइनर का संक्रमण है।"',
+    'mr': 'Respond ONLY in Marathi (मराठी) language. Use Devanagari script. Write ALL text, disease names, treatments, and explanations in Marathi. Example: "तुमच्या वनस्पतीला लीफ माइनर संक्रमण आहे।"',
+    'hi-en': 'Respond in Hinglish (mix of Hindi and English using Roman/Latin script). Write in conversational Hindi-English mix that Indian farmers commonly use. Example: "Aapke plant mein leaf miner ka infection hai. Treatment ke liye Spinosad spray lagayein."'
+  };
+  return instructions[langCode] || instructions['en'];
+}
+
+// Plant analysis prompt
+function getPlantAnalysisPrompt(language) {
+  const langInstruction = getLanguageInstruction(language);
+  
+  return `${langInstruction}
+
+Analyze this plant image for diseases, pests, and health issues. Provide response in JSON format:
+{
+  "plant_health": "healthy/diseased/pest_infected",
+  "confidence": "high/medium/low",
+  "issues_found": ["list of diseases or pests"],
+  "symptoms": ["visible symptoms"],
+  "treatment": ["treatment recommendations"],
+  "prevention": ["prevention tips"],
+  "urgency": "immediate/within_week/monitor"
+}
+
+IMPORTANT: Write ALL field values in the specified language (${language}). Be specific and practical for farmers.`;
+}
+
+// Disease query prompt
+function getDiseaseQueryPrompt(plantName, symptoms, location, language) {
+  const langInstruction = getLanguageInstruction(language);
+  
+  return `${langInstruction}
+
+Plant: ${plantName}
+Symptoms: ${symptoms}
+Location: ${location || 'Not specified'}
+
+Provide advice in JSON format:
+{
+  "diagnosis": "disease name",
+  "confidence": "high/medium/low",
+  "causes": ["possible causes"],
+  "treatment_plan": {
+    "immediate_actions": ["urgent steps"],
+    "ongoing_care": ["continued treatment"],
+    "timeline": "recovery time"
+  },
+  "prevention": ["prevention tips"],
+  "when_to_seek_help": "when to contact experts"
+}
+
+IMPORTANT: Write ALL field values in the specified language (${language}). Be practical for farmers.`;
+}
+
+// Product analysis prompt
+function getProductAnalysisPrompt(language) {
+  const langInstruction = getLanguageInstruction(language);
+  
+  return `${langInstruction}
+
+Analyze this agricultural product image. Provide information in JSON format:
+{
+  "product_type": "fertilizer/pesticide/herbicide/fungicide",
+  "product_name": "name if visible",
+  "active_ingredients": ["ingredients"],
+  "usage": {
+    "target_crops": ["crops"],
+    "application_method": "method",
+    "dosage_guidance": "dosage",
+    "timing": "when to apply"
+  },
+  "safety": {
+    "precautions": ["safety measures"],
+    "protective_equipment": ["required PPE"],
+    "storage": "storage requirements"
+  },
+  "effectiveness": "assessment",
+  "recommendations": ["recommendations"]
+}
+
+IMPORTANT: Write ALL field values in the specified language (${language}). Focus on farming advice.`;
+}
+
 // Gemini API function
 async function callGeminiAPI(prompt, imageBase64 = null) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -76,22 +163,12 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image uploaded' });
     }
 
+    const language = req.body.language || 'en';
+    
     const imageBuffer = fs.readFileSync(req.file.path);
     const imageBase64 = imageBuffer.toString('base64');
 
-    const prompt = `Analyze this plant image for diseases, pests, and health issues. Provide a detailed response in JSON format with the following structure:
-    {
-      "plant_health": "healthy/diseased/pest_infected",
-      "confidence": "high/medium/low",
-      "issues_found": ["list of diseases or pests identified"],
-      "symptoms": ["visible symptoms"],
-      "treatment": ["specific treatment recommendations"],
-      "prevention": ["prevention tips"],
-      "urgency": "immediate/within_week/monitor"
-    }
-    
-    Be specific and practical for farmers.`;
-
+    const prompt = getPlantAnalysisPrompt(language);
     const result = await callGeminiAPI(prompt, imageBase64);
     
     // Clean up uploaded file
@@ -113,34 +190,14 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
 // Disease Query
 app.post('/query-disease', async (req, res) => {
   try {
-    const { plant_name, symptoms, location } = req.body;
+    const { plant_name, symptoms, location, language } = req.body;
+    const lang = language || 'en';
 
     if (!plant_name || !symptoms) {
       return res.status(400).json({ error: 'Plant name and symptoms are required' });
     }
 
-    const prompt = `As an agricultural expert, provide advice for this plant problem:
-    
-    Plant: ${plant_name}
-    Symptoms: ${symptoms}
-    Location: ${location || 'Not specified'}
-    
-    Provide response in JSON format:
-    {
-      "diagnosis": "most likely disease or issue",
-      "confidence": "high/medium/low",
-      "causes": ["possible causes"],
-      "treatment_plan": {
-        "immediate_actions": ["urgent steps"],
-        "ongoing_care": ["continued treatment"],
-        "timeline": "expected recovery time"
-      },
-      "prevention": ["future prevention tips"],
-      "when_to_seek_help": "when to contact agricultural extension"
-    }
-    
-    Be practical and specific for farmers.`;
-
+    const prompt = getDiseaseQueryPrompt(plant_name, symptoms, location, lang);
     const result = await callGeminiAPI(prompt);
 
     res.json({
@@ -162,31 +219,12 @@ app.post('/analyze-product', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image uploaded' });
     }
 
+    const language = req.body.language || 'en';
+    
     const imageBuffer = fs.readFileSync(req.file.path);
     const imageBase64 = imageBuffer.toString('base64');
 
-    const prompt = `Analyze this agricultural product image (fertilizer, pesticide, spray, etc.). Provide detailed information in JSON format:
-    {
-      "product_type": "fertilizer/pesticide/herbicide/fungicide/other",
-      "product_name": "identified product name if visible",
-      "active_ingredients": ["main active ingredients if identifiable"],
-      "usage": {
-        "target_crops": ["suitable crops"],
-        "application_method": "how to apply",
-        "dosage_guidance": "general dosage information",
-        "timing": "when to apply"
-      },
-      "safety": {
-        "precautions": ["safety measures"],
-        "protective_equipment": ["required PPE"],
-        "storage": "storage requirements"
-      },
-      "effectiveness": "assessment of product effectiveness",
-      "recommendations": ["usage recommendations for farmers"]
-    }
-    
-    Focus on practical farming advice and safety.`;
-
+    const prompt = getProductAnalysisPrompt(language);
     const result = await callGeminiAPI(prompt, imageBase64);
     
     // Clean up uploaded file
