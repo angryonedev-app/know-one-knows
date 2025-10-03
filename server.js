@@ -273,12 +273,6 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Farm Expert Backend running on port ${PORT}`);
-  console.log(`Gemini API Key configured: ${GEMINI_API_KEY ? 'Yes' : 'No'}`);
-});
-
 // Analytics endpoint
 app.get('/analytics', (req, res) => {
   res.json({
@@ -291,4 +285,10 @@ app.get('/analytics', (req, res) => {
       { name: "Rust", count: 6 }
     ]
   });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Farm Expert Backend running on port ${PORT}`);
+  console.log(`Gemini API Key configured: ${GEMINI_API_KEY ? 'Yes' : 'No'}`);
 });
