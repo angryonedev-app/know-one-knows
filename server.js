@@ -3,10 +3,22 @@ const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
 const fs = require('fs');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// MongoDB connection (minimal addition)
+let db;
+const MONGODB_URI = `mongodb+srv://angryonedev_db_user:KmAMAjb3tc78Md15@angryone.hwhjxvw.mongodb.net/?retryWrites=true&w=majority&appName=angryone`;
+
+MongoClient.connect(MONGODB_URI)
+  .then(client => {
+    console.log('Connected to MongoDB');
+    db = client.db('farmexpert');
+  })
+  .catch(error => console.log('MongoDB connection error:', error));
 
 // Middleware
 app.use(cors());
@@ -146,9 +158,9 @@ async function callGeminiAPI(prompt, imageBase64 = null) {
 // Routes
 app.get('/', (req, res) => {
   res.json({
-    status: 'Farm Expert Backend',
+    status: 'Farm Expert AI Server',
     version: '1.0.0',
-    endpoints: ['/analyze-plant', '/query-disease', '/analyze-product', '/health']
+    endpoints: ['/analyze-plant', '/consultation', '/analyze-spray', '/record-scan', '/analytics', '/notifications', '/health']
   });
 });
 
@@ -188,7 +200,7 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
 });
 
 // Disease Query
-app.post('/query-disease', async (req, res) => {
+app.post('/consultation', async (req, res) => {
   try {
     const { plant_name, symptoms, location, language } = req.body;
     const lang = language || 'en';
@@ -213,7 +225,7 @@ app.post('/query-disease', async (req, res) => {
 });
 
 // Product Analysis
-app.post('/analyze-product', upload.single('image'), async (req, res) => {
+app.post('/analyze-spray', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image uploaded' });
@@ -240,6 +252,83 @@ app.post('/analyze-product', upload.single('image'), async (req, res) => {
     console.error('Product analysis error:', error);
     if (req.file) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// NEW: MongoDB Analytics Endpoints (minimal addition)
+// Record scan data
+app.post('/record-scan', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    
+    const { userId, scanType, result, location } = req.body;
+    const scanData = {
+      userId,
+      scanType,
+      result,
+      location,
+      timestamp: new Date(),
+      createdAt: new Date()
+    };
+    
+    await db.collection('scans').insertOne(scanData);
+    res.json({ success: true, message: 'Scan recorded' });
+  } catch (error) {
+    console.error('Record scan error:', error);
+    res.status(500).json({ error: 'Failed to record scan' });
+  }
+});
+
+// Get analytics data
+app.get('/analytics', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const [todayScans, weekScans, monthScans, totalScans] = await Promise.all([
+      db.collection('scans').countDocuments({ createdAt: { $gte: today } }),
+      db.collection('scans').countDocuments({ createdAt: { $gte: thisWeek } }),
+      db.collection('scans').countDocuments({ createdAt: { $gte: thisMonth } }),
+      db.collection('scans').countDocuments({})
+    ]);
+    
+    const recentScans = await db.collection('scans')
+      .find({}).sort({ createdAt: -1 }).limit(10).toArray();
+    
+    res.json({
+      counts: { today: todayScans, week: weekScans, month: monthScans, total: totalScans },
+      recentScans
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Notifications endpoints
+app.get('/notifications', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    const notifications = await db.collection('notifications').find({}).sort({ createdAt: -1 }).toArray();
+    res.json(notifications);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.post('/notifications', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    const { title, message, type } = req.body;
+    const notification = { title, message, type: type || 'info', createdAt: new Date() };
+    const result = await db.collection('notifications').insertOne(notification);
+    res.json({ id: result.insertedId, ...notification });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create notification' });
   }
 });
 
