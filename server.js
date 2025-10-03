@@ -11,7 +11,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // MongoDB connection (minimal addition)
 let db;
-const MONGODB_URI = `mongodb+srv://angryonedev_db_user:KmAMAjb3tc78Md15@angryone.hwhjxvw.mongodb.net/?retryWrites=true&w=majority&appName=angryone`;
+const MONGODB_URI = process.env.MONGODB_URI || `mongodb+srv://angryonedev_db_user:KmAMAjb3tc78Md15@angryone.hwhjxvw.mongodb.net/farmexpert?retryWrites=true&w=majority&appName=angryone`;
 
 MongoClient.connect(MONGODB_URI)
   .then(client => {
