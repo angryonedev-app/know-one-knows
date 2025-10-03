@@ -243,15 +243,6 @@ app.post('/analyze-spray', upload.single('image'), async (req, res) => {
   }
 });
 
-// Simple analytics endpoint (placeholder)
-app.get('/analytics', (req, res) => {
-  res.json({
-    counts: { today: 0, week: 0, month: 0, total: 0 },
-    recentScans: [],
-    message: 'Analytics coming soon'
-  });
-});
-
 // Simple record scan endpoint (placeholder)
 app.post('/record-scan', (req, res) => {
   res.json({ success: true, message: 'Scan recorded (placeholder)' });
