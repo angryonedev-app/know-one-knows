@@ -278,3 +278,17 @@ app.listen(PORT, () => {
   console.log(`Farm Expert Backend running on port ${PORT}`);
   console.log(`Gemini API Key configured: ${GEMINI_API_KEY ? 'Yes' : 'No'}`);
 });
+
+// Analytics endpoint
+app.get('/analytics', (req, res) => {
+  res.json({
+    total_scans: 150,
+    diseases_detected: 45,
+    healthy_plants: 105,
+    top_diseases: [
+      { name: "Leaf Blight", count: 12 },
+      { name: "Powdery Mildew", count: 8 },
+      { name: "Rust", count: 6 }
+    ]
+  });
+});
