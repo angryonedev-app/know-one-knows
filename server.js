@@ -13,12 +13,16 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 let db;
 const MONGODB_URI = process.env.MONGODB_URI || `mongodb+srv://angryonedev_db_user:KmAMAjb3tc78Md15@angryone.hwhjxvw.mongodb.net/farmexpert?retryWrites=true&w=majority&appName=angryone`;
 
+// Connect to MongoDB without blocking server startup
 MongoClient.connect(MONGODB_URI)
   .then(client => {
     console.log('Connected to MongoDB');
     db = client.db('farmexpert');
   })
-  .catch(error => console.log('MongoDB connection error:', error));
+  .catch(error => {
+    console.log('MongoDB connection error:', error.message);
+    console.log('Server will continue without MongoDB features');
+  });
 
 // Middleware
 app.use(cors());
@@ -259,7 +263,9 @@ app.post('/analyze-spray', upload.single('image'), async (req, res) => {
 // Record scan data
 app.post('/record-scan', async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available', success: false });
+    }
     
     const { userId, scanType, result, location } = req.body;
     const scanData = {
@@ -275,14 +281,20 @@ app.post('/record-scan', async (req, res) => {
     res.json({ success: true, message: 'Scan recorded' });
   } catch (error) {
     console.error('Record scan error:', error);
-    res.status(500).json({ error: 'Failed to record scan' });
+    res.status(500).json({ error: 'Failed to record scan', success: false });
   }
 });
 
 // Get analytics data
 app.get('/analytics', async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    if (!db) {
+      return res.status(503).json({ 
+        counts: { today: 0, week: 0, month: 0, total: 0 },
+        recentScans: [],
+        error: 'Database not available'
+      });
+    }
     
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -305,14 +317,20 @@ app.get('/analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
+    res.status(500).json({ 
+      counts: { today: 0, week: 0, month: 0, total: 0 },
+      recentScans: [],
+      error: 'Failed to fetch analytics'
+    });
   }
 });
 
 // Notifications endpoints
 app.get('/notifications', async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    if (!db) {
+      return res.json([]);
+    }
     const notifications = await db.collection('notifications').find({}).sort({ createdAt: -1 }).toArray();
     res.json(notifications);
   } catch (error) {
@@ -322,7 +340,9 @@ app.get('/notifications', async (req, res) => {
 
 app.post('/notifications', async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ error: 'Database not connected' });
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
     const { title, message, type } = req.body;
     const notification = { title, message, type: type || 'info', createdAt: new Date() };
     const result = await db.collection('notifications').insertOne(notification);
