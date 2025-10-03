@@ -274,7 +274,8 @@ app.get('/analytics', (req, res) => {
       { name: "Leaf Blight", count: 12 },
       { name: "Powdery Mildew", count: 8 },
       { name: "Rust", count: 6 }
-    ]
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
