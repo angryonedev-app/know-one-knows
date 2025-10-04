@@ -164,11 +164,16 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
     }
 
     const language = req.body.language || 'en';
+    const analysisType = req.body.analysisType;
     
     const imageBuffer = fs.readFileSync(req.file.path);
     const imageBase64 = imageBuffer.toString('base64');
 
-    const prompt = getPlantAnalysisPrompt(language);
+    // Choose prompt based on analysis type
+    const prompt = analysisType === 'product' 
+      ? getProductAnalysisPrompt(language)
+      : getPlantAnalysisPrompt(language);
+    
     const result = await callGeminiAPI(prompt, imageBase64);
     
     // Clean up uploaded file
