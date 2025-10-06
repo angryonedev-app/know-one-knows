@@ -284,6 +284,18 @@ app.get('/analytics', (req, res) => {
   });
 });
 
+// ============ CROP TRACKING TEST (New Feature) ============
+const CROP_TEST_ENABLED = process.env.CROP_TEST_ENABLED === 'true';
+
+if (CROP_TEST_ENABLED) {
+  const cropTestRoutes = require('./routes/cropTracking');
+  app.use('/api/crop-test', cropTestRoutes);
+  console.log('✅ Crop tracking TEST endpoint enabled');
+} else {
+  console.log('⏸️  Crop tracking test disabled (set CROP_TEST_ENABLED=true)');
+}
+// ============================================================
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Farm Expert Backend running on port ${PORT}`);
