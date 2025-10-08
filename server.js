@@ -30,10 +30,16 @@ function getLanguageInstruction(langCode) {
 }
 
 // Plant analysis prompt
-function getPlantAnalysisPrompt(language) {
+function getPlantAnalysisPrompt(language, location, temperature) {
   const langInstruction = getLanguageInstruction(language);
   
+  const locationContext = location ? `You are providing diagnosis for a farmer in ${location}.` : 'You are providing diagnosis for a farmer.';
+  const weatherContext = temperature ? ` The current temperature is around ${temperature}°C.` : '';
+  const contextualAdvice = location || temperature ? ' Consider the location and weather conditions in your analysis and recommendations.' : '';
+  
   return `${langInstruction}
+
+${locationContext}${weatherContext}${contextualAdvice}
 
 Analyze this plant image for diseases, pests, and health issues. Provide response in JSON format:
 {
@@ -165,6 +171,8 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
 
     const language = req.body.language || 'en';
     const analysisType = req.body.analysisType;
+    const location = req.body.location;
+    const temperature = req.body.temperature;
     
     const imageBuffer = fs.readFileSync(req.file.path);
     const imageBase64 = imageBuffer.toString('base64');
@@ -172,7 +180,7 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
     // Choose prompt based on analysis type
     const prompt = analysisType === 'product' 
       ? getProductAnalysisPrompt(language)
-      : getPlantAnalysisPrompt(language);
+      : getPlantAnalysisPrompt(language, location, temperature);
     
     const result = await callGeminiAPI(prompt, imageBase64);
     
