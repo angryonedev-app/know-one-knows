@@ -8,6 +8,47 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// ═══════════════════════════════════════════
+// API KEY ROTATION SYSTEM (ISOLATED & SAFE)
+// ═══════════════════════════════════════════
+
+// Load multiple API keys from environment
+const apiKeys = [
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+  process.env.GEMINI_API_KEY_5
+].filter(key => key && key.trim() !== '');
+
+let rotationCounter = 0;
+const ROTATION_INTERVAL = 3; // Rotate every 3 requests
+
+function getNextApiKey() {
+  if (apiKeys && apiKeys.length > 0) {
+    // Calculate which key to use based on rotation counter
+    const keyIndex = Math.floor(rotationCounter / ROTATION_INTERVAL) % apiKeys.length;
+    const selectedKey = apiKeys[keyIndex];
+    
+    rotationCounter++;
+    
+    // Log rotation activity
+    console.log(`🔑 Using API Key #${keyIndex + 1} (Request #${rotationCounter})`);
+    if (rotationCounter % ROTATION_INTERVAL === 0) {
+      const nextIndex = Math.floor(rotationCounter / ROTATION_INTERVAL) % apiKeys.length;
+      console.log(`🔄 Next rotation will use API Key #${nextIndex + 1}`);
+    }
+    
+    return selectedKey;
+  } else {
+    // FALLBACK: If no new keys are set, use the old one
+    console.warn("⚠️  WARNING: Using legacy GEMINI_API_KEY. Please set GEMINI_API_KEY_1, etc.");
+    return process.env.GEMINI_API_KEY;
+  }
+}
+
+// ═══════════════════════════════════════════
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -113,7 +154,7 @@ IMPORTANT: Write ALL field values in the specified language (${language}). Focus
 
 // Gemini API function
 async function callGeminiAPI(prompt, imageBase64 = null) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${getNextApiKey()}`;
   
   let payload = {
     contents: [{
