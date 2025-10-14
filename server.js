@@ -71,29 +71,49 @@ function getLanguageInstruction(langCode) {
 }
 
 // Plant analysis prompt
-function getPlantAnalysisPrompt(language, location, temperature) {
+function getPlantAnalysisPrompt(language) {
   const langInstruction = getLanguageInstruction(language);
-  
-  const locationContext = location ? `You are providing diagnosis for a farmer in ${location}.` : 'You are providing diagnosis for a farmer.';
-  const weatherContext = temperature ? ` The current temperature is around ${temperature}°C.` : '';
-  const contextualAdvice = location || temperature ? ' Consider the location and weather conditions in your analysis and recommendations.' : '';
   
   return `${langInstruction}
 
-${locationContext}${weatherContext}${contextualAdvice}
-
-Analyze this plant image for diseases, pests, and health issues. Provide response in JSON format:
+Analyze this plant image comprehensively and provide a detailed diagnosis report in the following JSON format:
 {
-  "plant_health": "healthy/diseased/pest_infected",
-  "confidence": "high/medium/low",
-  "issues_found": ["list of diseases or pests"],
-  "symptoms": ["visible symptoms"],
-  "treatment": ["treatment recommendations"],
-  "prevention": ["prevention tips"],
-  "urgency": "immediate/within_week/monitor"
+  "observation": {
+    "plantName": "AI's identification of the plant species",
+    "affectedArea": "Specific area where the problem is located (leaves, stem, roots, etc.)",
+    "visualDescription": "Detailed description of what the AI observes in the image"
+  },
+  "diagnosis": {
+    "name": "Specific disease or pest name",
+    "confidence": 94
+  },
+  "severity": {
+    "level": "Mild/Moderate/Severe",
+    "scale": 6,
+    "impact": "Description of potential crop loss or damage"
+  },
+  "treatment": {
+    "immediate": ["List of immediate actions to take"],
+    "chemical": ["Chemical sprays or treatments with specific names"],
+    "organic": ["Organic and natural treatment options"]
+  },
+  "rootCause": {
+    "primary": "Main underlying cause of the problem",
+    "prevention": ["Specific prevention tips for future"]
+  },
+  "profile": {
+    "frequency": "Common/Uncommon/Rare",
+    "regionalNotes": "Notes specific to the farmer's location and climate"
+  }
 }
 
-IMPORTANT: Write ALL field values in the specified language (${language}). Be specific and practical for farmers.`;
+CRITICAL REQUIREMENTS:
+- Confidence must be a number between 1-100
+- Scale must be a number between 1-10 (1=minimal, 10=critical)
+- Provide specific, actionable advice for farmers
+- Include both chemical and organic treatment options
+- Write ALL field values in the specified language (${language})
+- Be precise and practical for agricultural use`;
 }
 
 // Disease query prompt
@@ -212,8 +232,6 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
 
     const language = req.body.language || 'en';
     const analysisType = req.body.analysisType;
-    const location = req.body.location;
-    const temperature = req.body.temperature;
     
     const imageBuffer = fs.readFileSync(req.file.path);
     const imageBase64 = imageBuffer.toString('base64');
@@ -221,7 +239,7 @@ app.post('/analyze-plant', upload.single('image'), async (req, res) => {
     // Choose prompt based on analysis type
     const prompt = analysisType === 'product' 
       ? getProductAnalysisPrompt(language)
-      : getPlantAnalysisPrompt(language, location, temperature);
+      : getPlantAnalysisPrompt(language);
     
     const result = await callGeminiAPI(prompt, imageBase64);
     
