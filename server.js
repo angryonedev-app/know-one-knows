@@ -150,6 +150,109 @@ Provide advice in JSON format:
 IMPORTANT: Write ALL field values in the specified language (${language}). Be practical for farmers.`;
 }
 
+// Expert advice prompt
+function getExpertAdvicePrompt(data) {
+  const langInstruction = getLanguageInstruction(data.language || 'en');
+  
+  const locationContext = data.location ? `You are providing advice for a farmer in ${data.location}.` : 'You are providing advice for a farmer.';
+  const weatherContext = data.weather ? ` The current temperature is around ${data.weather}°C.` : '';
+  const cropContext = data.cropType ? ` The crop is ${data.cropType}.` : '';
+  const ageContext = data.plantAge ? ` The plant stage is ${data.plantAge}.` : '';
+  
+  let specificPrompt = '';
+  
+  if (data.goal === 'FIX_DISEASE') {
+    specificPrompt = `Analyze this plant image for diseases and provide a Complete Diagnosis Report in JSON format:
+{
+  "analysisType": "PLANT_DISEASE",
+  "observation": {
+    "plantName": "Plant identification",
+    "affectedArea": "Where the problem is",
+    "visualDescription": "What you observe"
+  },
+  "diagnosis": {
+    "name": "Disease name",
+    "confidence": 90
+  },
+  "severity": {
+    "level": "Mild/Moderate/Severe",
+    "scale": 6,
+    "impact": "Potential damage description"
+  },
+  "treatment": {
+    "immediate": ["Immediate actions"],
+    "chemical": ["Chemical treatments"],
+    "organic": ["Organic solutions"]
+  },
+  "rootCause": {
+    "primary": "Main cause",
+    "prevention": ["Prevention tips"]
+  },
+  "profile": {
+    "frequency": "Common/Uncommon/Rare",
+    "regionalNotes": "Regional farming notes"
+  }
+}`;
+  } else if (data.goal === 'IMPROVE_GROWTH') {
+    specificPrompt = `Provide a detailed Action Plan to improve plant growth in JSON format:
+{
+  "analysisType": "ACTION_PLAN",
+  "currentStatus": {
+    "plantHealth": "Assessment of current condition",
+    "growthStage": "Current stage analysis",
+    "potentialIssues": ["Potential problems to address"]
+  },
+  "actionPlan": {
+    "fertilizer": {
+      "type": "Recommended fertilizer type",
+      "dosage": "Exact application amount",
+      "timing": "When to apply",
+      "frequency": "How often"
+    },
+    "watering": {
+      "schedule": "Watering frequency",
+      "amount": "Water quantity",
+      "method": "Best watering technique"
+    },
+    "care": {
+      "pruning": "Pruning recommendations",
+      "spacing": "Plant spacing advice",
+      "support": "Support structure needs"
+    }
+  },
+  "timeline": {
+    "week1": "Actions for week 1",
+    "week2": "Actions for week 2",
+    "week3": "Actions for week 3",
+    "week4": "Actions for week 4"
+  },
+  "expectedResults": {
+    "improvements": ["Expected improvements"],
+    "timeline": "When to see results",
+    "monitoring": ["What to monitor"]
+  }
+}`;
+  } else {
+    specificPrompt = `Provide general farming advice in JSON format:
+{
+  "analysisType": "GENERAL_ADVICE",
+  "recommendations": ["General farming tips"],
+  "seasonalAdvice": ["Seasonal recommendations"],
+  "bestPractices": ["Best farming practices"]
+}`;
+  }
+  
+  return `${langInstruction}
+
+${locationContext}${weatherContext}${cropContext}${ageContext}
+
+${data.details ? `Additional details: ${data.details}` : ''}
+
+${specificPrompt}
+
+IMPORTANT: Write ALL field values in the specified language. Be specific and practical for farmers.`;
+}
+
 // Product analysis prompt
 function getProductAnalysisPrompt(language) {
   const langInstruction = getLanguageInstruction(language);
@@ -320,6 +423,40 @@ app.post('/analyze-spray', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('Product analysis error:', error);
     if (req.file) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Expert Advice Endpoint
+app.post('/expert-advice', async (req, res) => {
+  try {
+    const { goal, cropType, plantAge, details, imageBase64, location, weather, language } = req.body;
+    
+    if (!goal) {
+      return res.status(400).json({ error: 'Goal is required' });
+    }
+    
+    const adviceData = {
+      goal,
+      cropType,
+      plantAge,
+      details,
+      location,
+      weather,
+      language: language || 'en'
+    };
+    
+    const prompt = getExpertAdvicePrompt(adviceData);
+    const result = await callGeminiAPI(prompt, imageBase64);
+    
+    res.json({
+      success: true,
+      advice: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Expert advice error:', error);
     res.status(500).json({ error: error.message });
   }
 });
