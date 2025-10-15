@@ -150,6 +150,81 @@ Provide advice in JSON format:
 IMPORTANT: Write ALL field values in the specified language (${language}). Be practical for farmers.`;
 }
 
+// Smart solution prompt
+function getSmartSolutionPrompt(data) {
+  const langInstruction = getLanguageInstruction(data.language || 'hi');
+  
+  const locationContext = data.location ? `You are providing expert agricultural advice for a farmer in ${data.location}.` : 'You are providing expert agricultural advice for a farmer.';
+  const weatherContext = data.weather ? ` The current temperature is around ${data.weather}°C.` : '';
+  const cropContext = data.cropName ? ` The crop is ${data.cropName}.` : '';
+  const stageContext = data.plantStage ? ` The plant is in ${data.plantStage} stage.` : '';
+  const ageContext = data.plantAgeDays ? ` The plant is ${data.plantAgeDays} days old.` : '';
+  
+  return `${langInstruction}
+
+You are an expert agronomist with 20+ years of experience in Indian agriculture. 
+
+FARMER'S SITUATION:
+${locationContext}${weatherContext}${cropContext}${stageContext}${ageContext}
+
+FARMER'S PROBLEM/GOAL: ${data.problemDescription || 'General farming guidance needed'}
+
+INSTRUCTIONS:
+Analyze the farmer's situation and provide a comprehensive solution in JSON format:
+
+{
+  "analysisType": "SMART_SOLUTION",
+  "assessment": {
+    "cropHealth": "Current health assessment",
+    "identifiedIssues": ["List of identified problems"],
+    "riskLevel": "Low/Medium/High",
+    "urgency": "Immediate/Within week/Routine"
+  },
+  "solution": {
+    "immediate": {
+      "actions": ["Immediate steps to take"],
+      "timeline": "When to complete these actions"
+    },
+    "treatment": {
+      "chemical": ["Chemical solutions with exact dosages"],
+      "organic": ["Organic/natural solutions"],
+      "cultural": ["Farming practice changes"]
+    },
+    "prevention": {
+      "shortTerm": ["Actions for next 2 weeks"],
+      "longTerm": ["Actions for next season"],
+      "monitoring": ["What to watch for"]
+    }
+  },
+  "timeline": {
+    "day1": "Actions for day 1",
+    "week1": "Actions for week 1", 
+    "week2": "Actions for week 2",
+    "month1": "Actions for month 1"
+  },
+  "expectedOutcome": {
+    "improvements": ["Expected improvements"],
+    "timeframe": "When to see results",
+    "successIndicators": ["Signs of success"]
+  },
+  "expertTips": {
+    "dosageDetails": ["Exact application instructions"],
+    "timing": ["Best times for application"],
+    "weatherConsiderations": ["Weather-related advice"],
+    "costOptimization": ["Cost-effective alternatives"]
+  }
+}
+
+CRITICAL REQUIREMENTS:
+- Be extremely specific with dosages, timing, and methods
+- Consider the local climate and regional farming practices
+- Provide both chemical and organic solutions
+- Include cost-effective alternatives
+- Write ALL field values in Hindi language
+- Be practical and actionable for Indian farmers
+- Consider the plant's current stage and age in recommendations`;
+}
+
 // Expert advice prompt
 function getExpertAdvicePrompt(data) {
   const langInstruction = getLanguageInstruction(data.language || 'en');
@@ -423,6 +498,40 @@ app.post('/analyze-spray', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('Product analysis error:', error);
     if (req.file) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Smart Solution Finder Endpoint
+app.post('/smart-solution', async (req, res) => {
+  try {
+    const { cropName, plantStage, plantAgeDays, problemDescription, imageBase64, location, weather, language } = req.body;
+    
+    if (!problemDescription) {
+      return res.status(400).json({ error: 'Problem description is required' });
+    }
+    
+    const solutionData = {
+      cropName,
+      plantStage,
+      plantAgeDays,
+      problemDescription,
+      location,
+      weather,
+      language: language || 'hi'
+    };
+    
+    const prompt = getSmartSolutionPrompt(solutionData);
+    const result = await callGeminiAPI(prompt, imageBase64);
+    
+    res.json({
+      success: true,
+      solution: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Smart solution error:', error);
     res.status(500).json({ error: error.message });
   }
 });
